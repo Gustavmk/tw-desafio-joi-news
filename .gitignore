@@ -28,3 +28,7 @@ checkouts
 .console-creds.json
 common-utils/
 docker/
+
+
+*.auto.tfvars
+credentials
