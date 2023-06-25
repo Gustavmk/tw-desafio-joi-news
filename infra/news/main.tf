@@ -240,14 +240,14 @@ resource "null_resource" "front_end_provision" {
   provisioner "remote-exec" {
     inline = [
       "chmod +x /home/ec2-user/provision.sh",
-<<EOF
+    <<EOF
       /home/ec2-user/provision.sh \
       --region ${var.region} \
       --docker-image ${local.ecr_url}front_end:latest \
       --quote-service-url http://${aws_instance.quotes.private_ip}:8082 \
       --newsfeed-service-url http://${aws_instance.newsfeed.private_ip}:8081 \
       --static-url http://${aws_s3_bucket.news.website_endpoint}
-EOF
+    EOF
     ]
   }
 }
