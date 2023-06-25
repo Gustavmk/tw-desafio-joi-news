@@ -14,6 +14,7 @@ locals {
   ecr_url = data.aws_ssm_parameter.ecr.value
 }
 
+# TODO: only allow current IP address 
 resource "aws_security_group" "ssh_access" {
   vpc_id      = "${local.vpc_id}"
   name        = "${var.prefix}-ssh_access"
