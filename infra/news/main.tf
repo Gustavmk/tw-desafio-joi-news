@@ -135,6 +135,57 @@ module "frontend_zone_b" {
   provisioner_private_key = "${file("${path.module}/../id_rsa")}"
 }
 
+resource "null_resource" "front_end_provision_a" {
+  connection {
+    host        = "${module.frontend_zone_a.public_ip}"
+    type        = "ssh"
+    user        = "ec2-user"
+    private_key = "${file("${path.module}/../id_rsa")}"
+  }
+  provisioner "file" {
+    source      = "${path.module}/provision-front_end.sh"
+    destination = "/home/ec2-user/provision.sh"
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /home/ec2-user/provision.sh",
+      <<EOF
+      /home/ec2-user/provision.sh \
+      --region ${var.region} \
+      --docker-image ${local.ecr_url}front_end:latest \
+      --quote-service-url http://${module.ec2_quotes_zone_a.private_ip}:8082 \
+      --newsfeed-service-url http://${aws_instance.newsfeed.private_ip}:8081 \
+      --static-url http://${aws_s3_bucket.news.website_endpoint}
+    EOF
+    ]
+  }
+}
+
+resource "null_resource" "front_end_provision_b" {
+  connection {
+    host        = "${module.frontend_zone_b.public_ip}"
+    type        = "ssh"
+    user        = "ec2-user"
+    private_key = "${file("${path.module}/../id_rsa")}"
+  }
+  provisioner "file" {
+    source      = "${path.module}/provision-front_end.sh"
+    destination = "/home/ec2-user/provision.sh"
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /home/ec2-user/provision.sh",
+      <<EOF
+      /home/ec2-user/provision.sh \
+      --region ${var.region} \
+      --docker-image ${local.ecr_url}front_end:latest \
+      --quote-service-url http://${module.ec2_quotes_zone_b.private_ip}:8082 \
+      --newsfeed-service-url http://${aws_instance.newsfeed.private_ip}:8081 \
+      --static-url http://${aws_s3_bucket.news.website_endpoint}
+    EOF
+    ]
+  }
+}
 ### end of front-end
 
 resource "aws_instance" "quotes" {
@@ -177,9 +228,68 @@ resource "aws_instance" "quotes" {
   }
 }
 
-resource "null_resource" "quotes_provision" {
+module "ec2_quotes_zone_a" {
+  source               = "./modules/ec2"
+  ami                  = "${data.aws_ami.amazon_linux_2.id}"
+  ssh_key_name         = "${aws_key_pair.ssh_key.key_name}"
+  iam_instance_profile = "${var.prefix}-news_host"
+  availability_zone    = "${var.region}a"
+  subnet_id            = local.subnet_zone_a_id
+
+  vpc_security_group_ids_list = [
+    "${aws_security_group.front_end_sg.id}",
+    "${aws_security_group.ssh_access.id}"
+  ]
+
+  tags = {
+    Name      = "${var.prefix}-quotes"
+    createdBy = "infra-${var.prefix}/news"
+  }
+  provisioner_private_key = "${file("${path.module}/../id_rsa")}"
+}
+
+module "ec2_quotes_zone_b" {
+  source               = "./modules/ec2"
+  ami                  = "${data.aws_ami.amazon_linux_2.id}"
+  ssh_key_name         = "${aws_key_pair.ssh_key.key_name}"
+  iam_instance_profile = "${var.prefix}-news_host"
+  availability_zone    = "${var.region}b"
+  subnet_id            = local.subnet_zone_b_id
+
+  vpc_security_group_ids_list = [
+    "${aws_security_group.front_end_sg.id}",
+    "${aws_security_group.ssh_access.id}"
+  ]
+
+  tags = {
+    Name      = "${var.prefix}-quotes"
+    createdBy = "infra-${var.prefix}/news"
+  }
+  provisioner_private_key = "${file("${path.module}/../id_rsa")}"
+}
+
+resource "null_resource" "quotes_provision_a" {
   connection {
-    host        = "${aws_instance.quotes.public_ip}"
+    host        = "${module.ec2_quotes_zone_a.public_ip}"
+    type        = "ssh"
+    user        = "ec2-user"
+    private_key = "${file("${path.module}/../id_rsa")}"
+  }
+  provisioner "file" {
+    source      = "${path.module}/provision-quotes.sh"
+    destination = "/home/ec2-user/provision.sh"
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /home/ec2-user/provision.sh",
+      "/home/ec2-user/provision.sh ${local.ecr_url}quotes:latest"
+    ]
+  }
+}
+
+resource "null_resource" "quotes_provision_b" {
+  connection {
+    host        = "${module.ec2_quotes_zone_b.public_ip}"
     type        = "ssh"
     user        = "ec2-user"
     private_key = "${file("${path.module}/../id_rsa")}"
@@ -255,59 +365,8 @@ resource "null_resource" "newsfeed_provision" {
   }
 }
 
-resource "null_resource" "front_end_provision_a" {
-  connection {
-    host        = "${module.frontend_zone_a.public_ip}"
-    type        = "ssh"
-    user        = "ec2-user"
-    private_key = "${file("${path.module}/../id_rsa")}"
-  }
-  provisioner "file" {
-    source      = "${path.module}/provision-front_end.sh"
-    destination = "/home/ec2-user/provision.sh"
-  }
-  provisioner "remote-exec" {
-    inline = [
-      "chmod +x /home/ec2-user/provision.sh",
-      <<EOF
-      /home/ec2-user/provision.sh \
-      --region ${var.region} \
-      --docker-image ${local.ecr_url}front_end:latest \
-      --quote-service-url http://${aws_instance.quotes.private_ip}:8082 \
-      --newsfeed-service-url http://${aws_instance.newsfeed.private_ip}:8081 \
-      --static-url http://${aws_s3_bucket.news.website_endpoint}
-    EOF
-    ]
-  }
-}
 
-resource "null_resource" "front_end_provision_b" {
-  connection {
-    host        = "${module.frontend_zone_b.public_ip}"
-    type        = "ssh"
-    user        = "ec2-user"
-    private_key = "${file("${path.module}/../id_rsa")}"
-  }
-  provisioner "file" {
-    source      = "${path.module}/provision-front_end.sh"
-    destination = "/home/ec2-user/provision.sh"
-  }
-  provisioner "remote-exec" {
-    inline = [
-      "chmod +x /home/ec2-user/provision.sh",
-      <<EOF
-      /home/ec2-user/provision.sh \
-      --region ${var.region} \
-      --docker-image ${local.ecr_url}front_end:latest \
-      --quote-service-url http://${aws_instance.quotes.private_ip}:8082 \
-      --newsfeed-service-url http://${aws_instance.newsfeed.private_ip}:8081 \
-      --static-url http://${aws_s3_bucket.news.website_endpoint}
-    EOF
-    ]
-  }
-}
-
-### ALB Start 
+### ALB Frontend Start 
 
 resource "aws_lb" "alb_frontend" {
   name               = "${var.prefix}-alb-frontend"
@@ -373,6 +432,8 @@ resource "aws_lb_listener" "alb_frontend" {
 }
 
 ### ALB End
+
+
 
 ### Outputs Start
 
