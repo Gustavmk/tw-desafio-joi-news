@@ -107,8 +107,23 @@ resource "aws_instance" "front_end" {
 }
 
 module "froent_end_zone_b" {
-  source = "./module/ec2"
+  source               = "./modules/ec2"
+  ami                  = "${data.aws_ami.amazon_linux_2.id}"
+  ssh_key_name         = "${aws_key_pair.ssh_key.key_name}"
+  iam_instance_profile = "${var.prefix}-news_host"
+  availability_zone    = "${var.region}b"
+  subnet_id            = local.subnet_zone_b_id
 
+  vpc_security_group_ids_list = [
+    "${aws_security_group.front_end_sg.id}",
+    "${aws_security_group.ssh_access.id}"
+  ]
+
+  tags = {
+    Name      = "${var.prefix}-front_end"
+    createdBy = "infra-${var.prefix}/news"
+  }
+  provisioner_private_key = "${file("${path.module}/../id_rsa")}"
 }
 
 ### end of front-end

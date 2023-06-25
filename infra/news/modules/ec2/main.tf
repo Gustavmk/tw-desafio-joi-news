@@ -1,6 +1,6 @@
 variable "ami" {}
 
-variable "ec2_instance_type" {}
+variable "ec2_instance_type" { default = "t3.nano" }
 
 variable "ssh_key_name" {}
 
@@ -8,9 +8,11 @@ variable "iam_instance_profile" {}
 variable "availability_zone" {}
 variable "subnet_id" {}
 
-variable "vpc_security_group_ids_list" { type = list(strings) }
+variable "vpc_security_group_ids_list" { type = list(string) }
 
-variable "tags" { type = map(strings) }
+variable "tags" { type = map(string) }
+
+variable "provisioner_private_key" {}
 
 
 resource "aws_instance" "main" {
@@ -37,11 +39,11 @@ resource "aws_instance" "main" {
     host        = "${self.public_ip}"
     type        = "ssh"
     user        = "ec2-user"
-    private_key = "${file("${path.module}/../id_rsa")}"
+    private_key = var.provisioner_private_key
   }
 
   provisioner "remote-exec" {
-    script = "${path.module}/provision-docker.sh"
+    script = "${path.root}/provision-docker.sh"
   }
 
   tags = var.tags
