@@ -1,3 +1,28 @@
+# Allow only current IP address 
+data "http" "current_public_ip" {
+  url = "http://ipv4.icanhazip.com"
+}
+
+resource "aws_security_group" "ssh_access" {
+  vpc_id      = "${local.vpc_id}"
+  name        = "${var.prefix}-ssh_access"
+  description = "SSH access group"
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["${chomp(data.http.current_public_ip.body)}/32"]
+
+  }
+
+  tags = {
+    // refactoring
+    Name      = "Allow Current Public IP trought SSH"
+    createdBy = "infra-${var.prefix}/news"
+  }
+}
+
 
 ### Frontend Start
 resource "aws_security_group" "front_end_sg" {
@@ -103,3 +128,33 @@ resource "aws_security_group_rule" "newsfeed_internal_http" {
 
 
 ### Newsfeed End
+
+### ALB Start
+
+resource "aws_security_group" "alb_sg" {
+  vpc_id      = "${local.vpc_id}"
+  name        = "${var.prefix}-alb_http_access"
+  description = "HTTP access"
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    cidr_blocks = ["0.0.0.0/0"]
+    from_port   = "0"
+    protocol    = "-1"
+    to_port     = "0"
+  }
+
+  tags = {
+    Name      = "Allow HTTP"
+    createdBy = "infra-${var.prefix}/global"
+  }
+}
+
+
+### ALB End
