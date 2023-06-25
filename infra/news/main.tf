@@ -4,6 +4,12 @@ data "aws_ssm_parameter" "vpc_id" {
 data "aws_ssm_parameter" "subnet" {
   name = "/${var.prefix}/base/subnet/a/id"
 }
+
+# Refactoring
+data "aws_ssm_parameter" "subnet_zone_b" {
+  name = "/${var.prefix}/base/subnet/b/id"
+}
+
 data "aws_ssm_parameter" "ecr" {
   name = "/${var.prefix}/base/ecr"
 }
@@ -11,6 +17,10 @@ data "aws_ssm_parameter" "ecr" {
 locals {
   vpc_id = data.aws_ssm_parameter.vpc_id.value
   subnet_id = data.aws_ssm_parameter.subnet.value
+
+  # Refactoring
+  subnet_zone_b_id = data.aws_ssm_parameter.subnet_zone_b.value
+
   ecr_url = data.aws_ssm_parameter.ecr.value
 }
 
@@ -349,7 +359,7 @@ resource "aws_lb" "alb_frontend" {
   internal           = false
   load_balancer_type = "application"
   #security_groups    = [aws_security_group.lb_sg.id]
-  subnets            = [ "${local.subnet_id}" ]
+  subnets            = [ "${local.subnet_id}", "${local.subnet_zone_b_id}" ]
 
   enable_deletion_protection = true
 
@@ -379,10 +389,26 @@ resource "aws_lb_target_group" "alb_frontend" {
     }
 }
 
-resource "aws_lb_target_group_attachment" "frontend" {
-  target_group_arn = aws_lb.alb_frontend.arn
+resource "aws_lb_target_group_attachment" "alb_frontend" {
+  target_group_arn = aws_lb_target_group.alb_frontend.arn
   target_id = aws_instance.front_end.id
   port = 8080
+}
+
+resource "aws_lb_listener" "alb_frontend" {
+  load_balancer_arn = aws_lb.alb_frontend.arn
+  port = "8080"
+  protocol = "HTTP"
+
+  
+
+  default_action {
+    type = "forward"
+    target_group_arn = aws_lb_target_group.alb_frontend.arn
+
+  }
+
+
 }
 
 output "load_balancer_dns_name" {
