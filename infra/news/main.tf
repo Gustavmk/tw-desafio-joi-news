@@ -66,27 +66,6 @@ data "aws_ami" "amazon_linux_2" {
 
 ### Front end
 
-resource "aws_security_group" "front_end_sg" {
-  vpc_id      = "${local.vpc_id}"
-  name        = "${var.prefix}-front_end"
-  description = "Security group for front_end"
-
-  tags = {
-    Name = "SG for front_end"
-    createdBy = "infra-${var.prefix}/news"
-  }
-}
-
-# Allow all outbound connections
-resource "aws_security_group_rule" "front_end_all_out" {
-  type        = "egress"
-  to_port           = 0
-  from_port         = 0
-  protocol          = "-1"
-  cidr_blocks = [ "0.0.0.0/0" ]
-  security_group_id = "${aws_security_group.front_end_sg.id}"
-}
-
 resource "aws_instance" "front_end" {
   ami           = "${data.aws_ami.amazon_linux_2.id}"
   instance_type = "${var.instance_type}"
@@ -127,38 +106,7 @@ resource "aws_instance" "front_end" {
   }
 }
 
-# Allow public access to the front-end server
-resource "aws_security_group_rule" "front_end" {
-  type        = "ingress"
-  from_port   = 8080
-  to_port     = 8080
-  protocol    = "tcp"
-  cidr_blocks = [ "0.0.0.0/0" ]
-
-  security_group_id = "${aws_security_group.front_end_sg.id}"
-}
 ### end of front-end
-
-resource "aws_security_group" "quotes_sg" {
-  vpc_id      = "${local.vpc_id}"
-  name        = "${var.prefix}-quotes_sg"
-  description = "Security group for quotes"
-
-  tags = {
-    Name = "SG for quotes"
-    createdBy = "infra-${var.prefix}/news"
-  }
-}
-
-# Allow all outbound connections
-resource "aws_security_group_rule" "quotes_all_out" {
-  type        = "egress"
-  to_port           = 0
-  from_port         = 0
-  protocol          = "-1"
-  cidr_blocks = [ "0.0.0.0/0" ]
-  security_group_id = "${aws_security_group.quotes_sg.id}"
-}
 
 resource "aws_instance" "quotes" {
   ami           = "${data.aws_ami.amazon_linux_2.id}"
@@ -200,16 +148,6 @@ resource "aws_instance" "quotes" {
   }
 }
 
-# Allow internal access to the quotes HTTP server from front-end
-resource "aws_security_group_rule" "quotes_internal_http" {
-  type        = "ingress"
-  from_port   = 8082
-  to_port     = 8082
-  protocol    = "tcp"
-  source_security_group_id = "${aws_security_group.front_end_sg.id}"
-  security_group_id = "${aws_security_group.quotes_sg.id}"
-}
-
 resource "null_resource" "quotes_provision" {
   connection {
       host = "${aws_instance.quotes.public_ip}"
@@ -227,27 +165,6 @@ resource "null_resource" "quotes_provision" {
       "/home/ec2-user/provision.sh ${local.ecr_url}quotes:latest"
     ]
   }
-}
-
-resource "aws_security_group" "newsfeed_sg" {
-  vpc_id      = "${local.vpc_id}"
-  name        = "${var.prefix}-newsfeed_sg"
-  description = "Security group for newsfeed"
-
-  tags = {
-    Name = "SG for newsfeed"
-    createdBy = "infra-${var.prefix}/news"
-  }
-}
-
-# Allow all outbound connections
-resource "aws_security_group_rule" "newsfeed_all_out" {
-  type        = "egress"
-  to_port           = 0
-  from_port         = 0
-  protocol          = "-1"
-  cidr_blocks = [ "0.0.0.0/0" ]
-  security_group_id = "${aws_security_group.newsfeed_sg.id}"
 }
 
 resource "aws_instance" "newsfeed" {
@@ -288,16 +205,6 @@ resource "aws_instance" "newsfeed" {
   provisioner "remote-exec" {
     script = "${path.module}/provision-docker.sh"
   }
-}
-
-# Allow internal access to the newsfeed HTTP server from front-end
-resource "aws_security_group_rule" "newsfeed_internal_http" {
-  type        = "ingress"
-  from_port   = 8081
-  to_port     = 8081
-  protocol    = "tcp"
-  source_security_group_id = "${aws_security_group.front_end_sg.id}"
-  security_group_id = "${aws_security_group.newsfeed_sg.id}"
 }
 
 resource "null_resource" "newsfeed_provision" {
@@ -345,20 +252,39 @@ EOF
   }
 }
 
-output "frontend_url" {
-  value = "http://${aws_instance.front_end.public_ip}:8080"
-}
-
-
-# TODO: ALB 
 ### ALB Start 
 
+# Refactor
+resource "aws_security_group" "alb_sg" {
+  vpc_id      = "${local.vpc_id}"
+  name        = "${var.prefix}-alb_http_access"
+  description = "HTTP access"
+
+  ingress {
+    from_port = 80
+    to_port = 80
+    protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    cidr_blocks = ["0.0.0.0/0"]
+    from_port   = "0"
+    protocol    = "-1"
+    to_port     = "0"
+  }
+
+  tags = {
+    Name = "Allow HTTP"
+    createdBy = "infra-${var.prefix}/global"
+  }
+}
 
 resource "aws_lb" "alb_frontend" {
   name               = "test-lb-tf"
   internal           = false
   load_balancer_type = "application"
-  #security_groups    = [aws_security_group.lb_sg.id]
+  security_groups    = [ "${aws_security_group.alb_sg.id}" ]
   subnets            = [ "${local.subnet_id}", "${local.subnet_zone_b_id}" ]
 
   enable_deletion_protection = true
@@ -373,7 +299,7 @@ resource "aws_lb" "alb_frontend" {
 
 resource "aws_lb_target_group" "alb_frontend" {
   name = "frontend-news"
-  port = 80
+  port = 8080
   protocol = "HTTP"
   vpc_id = "${local.vpc_id}"
   health_check {
@@ -397,7 +323,7 @@ resource "aws_lb_target_group_attachment" "alb_frontend" {
 
 resource "aws_lb_listener" "alb_frontend" {
   load_balancer_arn = aws_lb.alb_frontend.arn
-  port = "8080"
+  port = "80"
   protocol = "HTTP"
 
   
@@ -411,7 +337,17 @@ resource "aws_lb_listener" "alb_frontend" {
 
 }
 
-output "load_balancer_dns_name" {
-  value = aws_lb.alb_frontend.dns_name
+
+### ALB End
+
+### Outputs Start
+
+output "frontend_url" {
+  value = "http://${aws_instance.front_end.public_ip}:8080"
 }
-### ALB end
+
+output "alb_dns_name" {
+  value = "http://${aws_lb.alb_frontend.dns_name}/"
+}
+
+### Outputs End
