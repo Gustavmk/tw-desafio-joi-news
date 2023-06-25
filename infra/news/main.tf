@@ -338,3 +338,54 @@ EOF
 output "frontend_url" {
   value = "http://${aws_instance.front_end.public_ip}:8080"
 }
+
+
+# TODO: ALB 
+### ALB Start 
+
+
+resource "aws_lb" "alb_frontend" {
+  name               = "test-lb-tf"
+  internal           = false
+  load_balancer_type = "application"
+  #security_groups    = [aws_security_group.lb_sg.id]
+  subnets            = [ "${local.subnet_id}" ]
+
+  enable_deletion_protection = true
+
+
+  tags = {
+    Name = "${var.prefix}-alb"
+    createdBy = "infra-${var.prefix}/global"
+  }
+
+}
+
+resource "aws_lb_target_group" "alb_frontend" {
+  name = "frontend-news"
+  port = 80
+  protocol = "HTTP"
+  vpc_id = "${local.vpc_id}"
+  health_check {
+    enabled = true
+    healthy_threshold = 3
+    interval = 10
+    matcher = 200
+    path = "/"
+    port = "traffic-port"
+    protocol = "HTTP"
+    timeout = 3
+    unhealthy_threshold = 2
+    }
+}
+
+resource "aws_lb_target_group_attachment" "frontend" {
+  target_group_arn = aws_lb.alb_frontend.arn
+  target_id = aws_instance.front_end.id
+  port = 8080
+}
+
+output "load_balancer_dns_name" {
+  value = aws_lb.alb_frontend.dns_name
+}
+### ALB end

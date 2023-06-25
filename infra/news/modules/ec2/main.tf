@@ -13,7 +13,6 @@ variable "vpc_security_group_ids_list" { type = list(strings) }
 variable "tags" { type = map(strings) }
 
 
-
 resource "aws_instance" "main" {
   ami           = var.ami
   instance_type = var.ec2_instance_type
