@@ -6,7 +6,7 @@ resource "aws_security_group" "front_end_sg" {
   description = "Security group for front_end"
 
   tags = {
-    Name = "SG for front_end"
+    Name      = "SG for front_end"
     createdBy = "infra-${var.prefix}/news"
   }
 }
@@ -17,18 +17,18 @@ resource "aws_security_group_rule" "front_end" {
   from_port   = 8080
   to_port     = 8080
   protocol    = "tcp"
-  cidr_blocks = [ "0.0.0.0/0" ]
+  cidr_blocks = ["0.0.0.0/0"]
 
   security_group_id = "${aws_security_group.front_end_sg.id}"
 }
 
 # Allow all outbound connections
 resource "aws_security_group_rule" "front_end_all_out" {
-  type        = "egress"
+  type              = "egress"
   to_port           = 0
   from_port         = 0
   protocol          = "-1"
-  cidr_blocks = [ "0.0.0.0/0" ]
+  cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = "${aws_security_group.front_end_sg.id}"
 }
 
@@ -41,29 +41,29 @@ resource "aws_security_group" "quotes_sg" {
   description = "Security group for quotes"
 
   tags = {
-    Name = "SG for quotes"
+    Name      = "SG for quotes"
     createdBy = "infra-${var.prefix}/news"
   }
 }
 
 # Allow all outbound connections
 resource "aws_security_group_rule" "quotes_all_out" {
-  type        = "egress"
+  type              = "egress"
   to_port           = 0
   from_port         = 0
   protocol          = "-1"
-  cidr_blocks = [ "0.0.0.0/0" ]
+  cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = "${aws_security_group.quotes_sg.id}"
 }
 
 # Allow internal access to the quotes HTTP server from front-end
 resource "aws_security_group_rule" "quotes_internal_http" {
-  type        = "ingress"
-  from_port   = 8082
-  to_port     = 8082
-  protocol    = "tcp"
+  type                     = "ingress"
+  from_port                = 8082
+  to_port                  = 8082
+  protocol                 = "tcp"
   source_security_group_id = "${aws_security_group.front_end_sg.id}"
-  security_group_id = "${aws_security_group.quotes_sg.id}"
+  security_group_id        = "${aws_security_group.quotes_sg.id}"
 }
 
 ### Quotes End
@@ -76,29 +76,29 @@ resource "aws_security_group" "newsfeed_sg" {
   description = "Security group for newsfeed"
 
   tags = {
-    Name = "SG for newsfeed"
+    Name      = "SG for newsfeed"
     createdBy = "infra-${var.prefix}/news"
   }
 }
 
 # Allow all outbound connections
 resource "aws_security_group_rule" "newsfeed_all_out" {
-  type        = "egress"
+  type              = "egress"
   to_port           = 0
   from_port         = 0
   protocol          = "-1"
-  cidr_blocks = [ "0.0.0.0/0" ]
+  cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = "${aws_security_group.newsfeed_sg.id}"
 }
 
 # Allow internal access to the newsfeed HTTP server from front-end
 resource "aws_security_group_rule" "newsfeed_internal_http" {
-  type        = "ingress"
-  from_port   = 8081
-  to_port     = 8081
-  protocol    = "tcp"
+  type                     = "ingress"
+  from_port                = 8081
+  to_port                  = 8081
+  protocol                 = "tcp"
   source_security_group_id = "${aws_security_group.front_end_sg.id}"
-  security_group_id = "${aws_security_group.newsfeed_sg.id}"
+  security_group_id        = "${aws_security_group.newsfeed_sg.id}"
 }
 
 

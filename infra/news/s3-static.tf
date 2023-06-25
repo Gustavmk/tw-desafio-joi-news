@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "news" {
-  bucket = "${var.prefix}-terraform-infra-static-pages"
+  bucket        = "${var.prefix}-terraform-infra-static-pages"
   force_destroy = true
 
   website {
@@ -26,8 +26,8 @@ resource "aws_s3_bucket_ownership_controls" "news" {
 
 resource "aws_s3_bucket_acl" "news" {
   depends_on = [
-	aws_s3_bucket_public_access_block.news,
-	aws_s3_bucket_ownership_controls.news,
+    aws_s3_bucket_public_access_block.news,
+    aws_s3_bucket_ownership_controls.news,
   ]
 
   bucket = aws_s3_bucket.news.id
@@ -37,8 +37,8 @@ resource "aws_s3_bucket_acl" "news" {
 
 resource "aws_s3_bucket_policy" "news" {
   depends_on = [
-	aws_s3_bucket_public_access_block.news,
-	aws_s3_bucket_ownership_controls.news,
+    aws_s3_bucket_public_access_block.news,
+    aws_s3_bucket_ownership_controls.news,
   ]
 
   bucket = "${aws_s3_bucket.news.id}"
