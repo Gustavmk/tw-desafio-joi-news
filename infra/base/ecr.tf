@@ -20,14 +20,14 @@ locals {
 }
 
 resource "aws_ssm_parameter" "ecr" {
-  name = "/${var.prefix}/base/ecr"
+  name  = "/${var.prefix}/base/ecr"
   value = local.ecr_url
   type  = "String"
 }
 
 resource "local_file" "ecr" {
   filename = "${path.module}/../ecr-url.txt"
-  content = local.ecr_url
+  content  = local.ecr_url
 }
 
 output "repository_base_url" {

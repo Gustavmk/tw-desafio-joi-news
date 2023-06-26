@@ -1,7 +1,7 @@
 # This file creates S3 bucket to hold terraform states
 # and DynamoDB table to keep the state locks.
 resource "aws_s3_bucket" "terraform_infra" {
-  bucket = "newskuno-terraform-infra"
+  bucket        = "newskuno-terraform-infra"
   force_destroy = true
 
   # To allow rolling back states
@@ -19,8 +19,8 @@ resource "aws_s3_bucket" "terraform_infra" {
   }
 
   tags = {
-     Name = "Bucket for terraform states of newskuno"
-     createdBy = "infra-newskuno/backend-support"
+    Name      = "Bucket for terraform states of newskuno"
+    createdBy = "infra-newskuno/backend-support"
   }
 }
 
@@ -39,7 +39,7 @@ resource "aws_s3_bucket_acl" "terraform_infra" {
 }
 
 resource "aws_dynamodb_table" "dynamodb-table" {
-  name           = "newskuno-terraform-locks"
+  name = "newskuno-terraform-locks"
   # up to 25 per account is free
   billing_mode   = "PROVISIONED"
   read_capacity  = 2
@@ -52,7 +52,7 @@ resource "aws_dynamodb_table" "dynamodb-table" {
   }
 
   tags = {
-     Name = "Terraform Lock Table"
-     createdBy = "infra-newskuno/backend-support"
+    Name      = "Terraform Lock Table"
+    createdBy = "infra-newskuno/backend-support"
   }
 }
