@@ -1,9 +1,6 @@
 data "aws_ssm_parameter" "vpc_id" {
   name = "/${var.prefix}/base/vpc_id"
 }
-data "aws_ssm_parameter" "subnet" {
-  name = "/${var.prefix}/base/subnet/a/id"
-}
 
 # Refactoring
 
@@ -21,7 +18,6 @@ data "aws_ssm_parameter" "ecr" {
 
 locals {
   vpc_id    = data.aws_ssm_parameter.vpc_id.value
-  subnet_id = data.aws_ssm_parameter.subnet.value
 
   subnet_zone_a_id = data.aws_ssm_parameter.subnet_zone_a.value
 
@@ -154,11 +150,13 @@ resource "null_resource" "front_end_provision_a" {
       --region ${var.region} \
       --docker-image ${local.ecr_url}front_end:latest \
       --quote-service-url http://${module.ec2_quotes_zone_a.private_ip}:8082 \
-      --newsfeed-service-url http://${module.ec2_newsfeed_zone_a_private_ip}:8081 \
+      --newsfeed-service-url http://${module.ec2_newsfeed_zone_a.private_ip}:8081 \
       --static-url http://${aws_s3_bucket.news.website_endpoint}
     EOF
     ]
   }
+
+  depends_on = [ null_resource.newsfeed_provision_a ]
 }
 
 resource "null_resource" "front_end_provision_b" {
@@ -180,53 +178,16 @@ resource "null_resource" "front_end_provision_b" {
       --region ${var.region} \
       --docker-image ${local.ecr_url}front_end:latest \
       --quote-service-url http://${module.ec2_quotes_zone_b.private_ip}:8082 \
-      --newsfeed-service-url http://${module.ec2_newsfeed_zone_b_private_ip}:8081 \
+      --newsfeed-service-url http://${module.ec2_newsfeed_zone_b.private_ip}:8081 \
       --static-url http://${aws_s3_bucket.news.website_endpoint}
     EOF
     ]
   }
+
+  depends_on = [ null_resource.newsfeed_provision_b ]
 }
+
 ### end of front-end
-
-resource "aws_instance" "quotes" {
-  ami                         = "${data.aws_ami.amazon_linux_2.id}"
-  instance_type               = "${var.instance_type}"
-  key_name                    = "${aws_key_pair.ssh_key.key_name}"
-  associate_public_ip_address = true
-
-  root_block_device {
-    volume_type           = "gp2"
-    volume_size           = 8
-    delete_on_termination = true
-  }
-
-  iam_instance_profile = "${var.prefix}-news_host"
-
-  availability_zone = "${var.region}a"
-
-  subnet_id = local.subnet_id
-
-  vpc_security_group_ids = [
-    "${aws_security_group.quotes_sg.id}",
-    "${aws_security_group.ssh_access.id}"
-  ]
-
-  tags = {
-    Name      = "${var.prefix}-quotes"
-    createdBy = "infra-${var.prefix}/news"
-  }
-
-  connection {
-    host        = "${self.public_ip}"
-    type        = "ssh"
-    user        = "ec2-user"
-    private_key = "${file("${path.module}/../id_rsa")}"
-  }
-
-  provisioner "remote-exec" {
-    script = "${path.module}/provision-docker.sh"
-  }
-}
 
 module "ec2_quotes_zone_a" {
   source               = "./modules/ec2"
@@ -237,7 +198,7 @@ module "ec2_quotes_zone_a" {
   subnet_id            = local.subnet_zone_a_id
 
   vpc_security_group_ids_list = [
-    "${aws_security_group.front_end_sg.id}",
+    "${aws_security_group.quotes_sg.id}",
     "${aws_security_group.ssh_access.id}"
   ]
 
@@ -257,7 +218,7 @@ module "ec2_quotes_zone_b" {
   subnet_id            = local.subnet_zone_b_id
 
   vpc_security_group_ids_list = [
-    "${aws_security_group.front_end_sg.id}",
+    "${aws_security_group.quotes_sg.id}",
     "${aws_security_group.ssh_access.id}"
   ]
 
@@ -315,7 +276,7 @@ module "ec2_newsfeed_zone_a" {
   subnet_id            = local.subnet_zone_a_id
 
   vpc_security_group_ids_list = [
-    "${aws_security_group.front_end_sg.id}",
+    "${aws_security_group.newsfeed_sg.id}",
     "${aws_security_group.ssh_access.id}"
   ]
 
@@ -335,7 +296,7 @@ module "ec2_newsfeed_zone_b" {
   subnet_id            = local.subnet_zone_b_id
 
   vpc_security_group_ids_list = [
-    "${aws_security_group.front_end_sg.id}",
+    "${aws_security_group.newsfeed_sg.id}",
     "${aws_security_group.ssh_access.id}"
   ]
 
@@ -391,7 +352,7 @@ resource "aws_lb" "alb_frontend" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = ["${aws_security_group.alb_sg.id}"]
-  subnets            = ["${local.subnet_id}", "${local.subnet_zone_b_id}"]
+  subnets            = ["${local.subnet_zone_a_id}", "${local.subnet_zone_b_id}"]
 
   enable_deletion_protection = false
 

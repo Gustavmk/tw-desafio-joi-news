@@ -1,14 +1,14 @@
 
 
-resource "null_resource" "quotes_provision" {
+resource "null_resource" "main" {
   connection {
-    host        = "${aws_instance.quotes.public_ip}"
+    host        = ""
     type        = "ssh"
     user        = "ec2-user"
     private_key = "${file("${path.module}/../id_rsa")}"
   }
   provisioner "file" {
-    source      = "${path.module}/provision-quotes.sh"
+    source      = var.source_script
     destination = "/home/ec2-user/provision.sh"
   }
   provisioner "remote-exec" {
