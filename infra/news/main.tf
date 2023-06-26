@@ -154,7 +154,7 @@ resource "null_resource" "front_end_provision_a" {
       --region ${var.region} \
       --docker-image ${local.ecr_url}front_end:latest \
       --quote-service-url http://${module.ec2_quotes_zone_a.private_ip}:8082 \
-      --newsfeed-service-url http://${aws_instance.newsfeed.private_ip}:8081 \
+      --newsfeed-service-url http://${module.ec2_newsfeed_zone_a_private_ip}:8081 \
       --static-url http://${aws_s3_bucket.news.website_endpoint}
     EOF
     ]
@@ -180,7 +180,7 @@ resource "null_resource" "front_end_provision_b" {
       --region ${var.region} \
       --docker-image ${local.ecr_url}front_end:latest \
       --quote-service-url http://${module.ec2_quotes_zone_b.private_ip}:8082 \
-      --newsfeed-service-url http://${aws_instance.newsfeed.private_ip}:8081 \
+      --newsfeed-service-url http://${module.ec2_newsfeed_zone_b_private_ip}:8081 \
       --static-url http://${aws_s3_bucket.news.website_endpoint}
     EOF
     ]
@@ -306,26 +306,16 @@ resource "null_resource" "quotes_provision_b" {
   }
 }
 
-resource "aws_instance" "newsfeed" {
-  ami                         = "${data.aws_ami.amazon_linux_2.id}"
-  instance_type               = "${var.instance_type}"
-  key_name                    = "${aws_key_pair.ssh_key.key_name}"
-  associate_public_ip_address = true
-
-  root_block_device {
-    volume_type           = "gp2"
-    volume_size           = 8
-    delete_on_termination = true
-  }
-
+module "ec2_newsfeed_zone_a" {
+  source               = "./modules/ec2"
+  ami                  = "${data.aws_ami.amazon_linux_2.id}"
+  ssh_key_name         = "${aws_key_pair.ssh_key.key_name}"
   iam_instance_profile = "${var.prefix}-news_host"
+  availability_zone    = "${var.region}a"
+  subnet_id            = local.subnet_zone_a_id
 
-  availability_zone = "${var.region}a"
-
-  subnet_id = local.subnet_id
-
-  vpc_security_group_ids = [
-    "${aws_security_group.newsfeed_sg.id}",
+  vpc_security_group_ids_list = [
+    "${aws_security_group.front_end_sg.id}",
     "${aws_security_group.ssh_access.id}"
   ]
 
@@ -333,22 +323,32 @@ resource "aws_instance" "newsfeed" {
     Name      = "${var.prefix}-newsfeed"
     createdBy = "infra-${var.prefix}/news"
   }
-
-  connection {
-    host        = "${self.public_ip}"
-    type        = "ssh"
-    user        = "ec2-user"
-    private_key = "${file("${path.module}/../id_rsa")}"
-  }
-
-  provisioner "remote-exec" {
-    script = "${path.module}/provision-docker.sh"
-  }
+  provisioner_private_key = "${file("${path.module}/../id_rsa")}"
 }
 
-resource "null_resource" "newsfeed_provision" {
+module "ec2_newsfeed_zone_b" {
+  source               = "./modules/ec2"
+  ami                  = "${data.aws_ami.amazon_linux_2.id}"
+  ssh_key_name         = "${aws_key_pair.ssh_key.key_name}"
+  iam_instance_profile = "${var.prefix}-news_host"
+  availability_zone    = "${var.region}b"
+  subnet_id            = local.subnet_zone_b_id
+
+  vpc_security_group_ids_list = [
+    "${aws_security_group.front_end_sg.id}",
+    "${aws_security_group.ssh_access.id}"
+  ]
+
+  tags = {
+    Name      = "${var.prefix}-newsfeed"
+    createdBy = "infra-${var.prefix}/news"
+  }
+  provisioner_private_key = "${file("${path.module}/../id_rsa")}"
+}
+
+resource "null_resource" "newsfeed_provision_a" {
   connection {
-    host        = "${aws_instance.newsfeed.public_ip}"
+    host        = "${module.ec2_newsfeed_zone_a.public_ip}"
     type        = "ssh"
     user        = "ec2-user"
     private_key = "${file("${path.module}/../id_rsa")}"
@@ -365,6 +365,24 @@ resource "null_resource" "newsfeed_provision" {
   }
 }
 
+resource "null_resource" "newsfeed_provision_b" {
+  connection {
+    host        = "${module.ec2_newsfeed_zone_b.public_ip}"
+    type        = "ssh"
+    user        = "ec2-user"
+    private_key = "${file("${path.module}/../id_rsa")}"
+  }
+  provisioner "file" {
+    source      = "${path.module}/provision-newsfeed.sh"
+    destination = "/home/ec2-user/provision.sh"
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /home/ec2-user/provision.sh",
+      "/home/ec2-user/provision.sh ${local.ecr_url}newsfeed:latest"
+    ]
+  }
+}
 
 ### ALB Frontend Start 
 
